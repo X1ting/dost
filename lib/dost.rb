@@ -1,11 +1,12 @@
 module DOST
   class Data
-    attr_reader :lines, :headers_delimiters, :values_delimiters
+    attr_reader :lines, :headers_delimiters, :values_delimiters, :key_modifier
 
-    def initialize(lines:, headers_delimiters:, values_delimiters:)
+    def initialize(lines:, headers_delimiters:, values_delimiters:, key_modifier: nil)
       @lines = lines.map(&:chomp)
       @headers_delimiters = headers_delimiters
       @values_delimiters = values_delimiters
+      @key_modifier = key_modifier
     end
 
     def headers
@@ -16,11 +17,29 @@ module DOST
       @values ||= parse_values
     end
 
+    def dynamic_offseted_values(left_dynamic_bound_headers = [])
+      values_lines.map do |line|
+        headers.reverse.map do |(name, range)|
+          is_dynamic = left_dynamic_bound_headers.include?(name)
+          str = line[range]
+          if is_dynamic && range.first > 0
+            i = range.first - 1
+            while present?(line[i]) && i >= 0 do
+              str.prepend(line[i])
+              line[i] = ' '
+              i -= 1
+            end
+          end
+          [name, str.strip]
+        end.reverse.to_h
+      end
+    end
+
     private def parse_headers
       raw_headers = header_lines.map { |header_line| calc_ranges(header_line) }
 
       first_row = raw_headers.first
-      second_row = raw_headers.last
+      second_row = raw_headers[1]
 
       first_row.map.with_index do |(first_key, first_range)|
         values_inside = second_row.select do |(second_key, second_range)|
@@ -31,7 +50,7 @@ module DOST
         end
 
         if values_inside.empty?
-          [[first_key.strip.to_sym, first_range]]
+          [[modify_key(first_key), first_range]]
         else
           values_inside.map.with_index do |(second_item_key, second_item_range), index|
             key = (first_key.strip + second_item_key.strip.prepend('_'))
@@ -41,7 +60,7 @@ module DOST
             right_bound = is_last_item ? [second_item_range.last, first_range.last].min : second_item_range.last
 
             range = left_bound..right_bound
-            [key.strip.to_sym, range]
+            [modify_key(key), range]
           end
         end
       end.flatten(1)
@@ -90,7 +109,7 @@ module DOST
     end
 
     private def delimiter?(line)
-      line.chars.uniq.count == 1 && !blank?(delimiter_char(line))
+      line.chars.uniq.count == 1 && present?(delimiter_char(line))
     end
 
     private def delimiter_char(line)
@@ -101,9 +120,17 @@ module DOST
       str !~ /[^[:space:]]/
     end
 
+    private def present?(str)
+      !blank?(str)
+    end
+
     # from https://apidock.com/rails/Range/overlaps
     private def overlaps?(orig, other)
       orig.cover?(other.first) || other.cover?(orig.first)
+    end
+
+    private def modify_key(key)
+      key_modifier.nil? ? keyа : key_modifier.call(key)
     end
   end
 end

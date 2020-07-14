@@ -49,14 +49,31 @@ lines = File.open('example.txt').read.lines.map(&:chomp)
 dost_data = DOST::Data.new(
   lines: lines,
   headers_delimiters: ['=', '-'],
-  values_delimiters: ['-', '=']
+  values_delimiters: ['-', '='],
+  key_modifier: ->(key) { key.strip.downcase.to_sym }
 )
 
-[6] pry(main)> dost_data.headers
+pry(main)> dost_data.headers
 => [[:fuu, 0..6], [:bar, 7..12], [:someverylong, 13..24]]
-[7] pry(main)> dost_data.values
+pry(main)> dost_data.values
 => [{:fuu=>"11", :bar=>"22", :someverylong=>"200000000000"}, {:fuu=>"111", :bar=>"220", :someverylong=>"300000000000"}]
 ```
+
+#### Arguments
+
+* lines - Lines from file, usually you can get it by `File.open('example.txt').read.lines.map(&:chomp)`
+* headers_delimiters - Array of 2 chars, first define start of headers section, second one - end of header section (delimiter is a line that contain all same symbols except all whitespaces)
+* values_delimiters - same as for header but for values
+* key_modifier - proc that would be applied for your keys of headers. In our example it work like a `'FUU'.strip.downcase.to_sym`
+
+#### Methods
+
+* `.headers` - returns array of headers with applied key modifier and with range that define position column in the line.
+
+
+* `.values` - returns array of hashes with applied range to corresponding line
+
+* `.dynamic_offseted_values` - documentation in progress
 
 ## Contributing
 
